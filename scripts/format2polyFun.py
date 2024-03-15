@@ -162,6 +162,13 @@ def main():
     logging.info(f"drop all {is_duplicate.sum()} duplicated SNPs, ")
     data = data.drop_duplicates(subset="SNP", keep=False)
 
+    logging.info(
+        f"keep only bi-allelic SNPs, Note: this is done by drop duplicates with same position"
+    )
+    is_duplicate_pos = data.duplicated(subset=["CHR", "BP"])
+    logging.info(f"drop all {is_duplicate_pos.sum()} duplicated SNPs, ")
+    data = data.drop_duplicates(subset=["CHR", "BP"], keep=False)
+
     data.to_csv(args['output'], sep="\t", index=False, compression="gzip" if args['output'].endswith(".gz") else None)
     logging.info(f"output to {args['output']} and done!")
 
