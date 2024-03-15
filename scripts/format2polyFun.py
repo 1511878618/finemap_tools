@@ -158,7 +158,9 @@ def main():
         data = pd.concat(data)
 
     logging.info(f"will drop the duplicated SNPs")
-    data = data.drop_duplicates(subset="SNP")
+    is_duplicate = data.duplicated(subset="SNP")
+    logging.info(f"drop all {is_duplicate.sum()} duplicated SNPs, ")
+    data = data.drop_duplicates(subset="SNP", keep=False)
 
     data.to_csv(args['output'], sep="\t", index=False, compression="gzip" if args['output'].endswith(".gz") else None)
     logging.info(f"output to {args['output']} and done!")
