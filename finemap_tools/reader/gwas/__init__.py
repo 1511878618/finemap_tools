@@ -1,0 +1,1 @@
+from .formated import load_GWASFormated_file
