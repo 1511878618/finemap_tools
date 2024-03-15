@@ -122,6 +122,9 @@ def main():
 
     data = format2polyFun(data, args)
 
+    logging.info(f"will drop the duplicated SNPs")
+    data = data.drop_duplicates(subset="SNP")
+
     data.to_csv(args['output'], sep="\t", index=False, compression="gzip" if args['output'].endswith(".gz") else None)
     logging.info(f"output to {args['output']} and done!")
 
