@@ -59,7 +59,19 @@ def args_parse():
     parser.add_argument("--beta", type=str, required=False, help="beta is the effect size of the effect allele")
     parser.add_argument("--se", type=str, required=False, help="se is the standard error of the effect size")
     parser.add_argument("--no-header", action="store_true", help="if passed, will not use the first row as header")
-    # parser.add_argument("--parallel", action="store_true", help="if passed, will use parallel to split the file")
+    parser.add_argument(
+        "--parallel",
+        type=int,
+        required=False,
+        default=1,
+        help="parallel number, default is 1",
+    )
+    parser.add_argument(
+        "--chunk-size",
+        type=int,
+        default=10000,
+        help="chunk size, default is 10000",
+    )
     return parser.parse_args()
 
 
@@ -114,13 +126,36 @@ def main():
         sep=args["sep"],
         header=None if args["no_header"] else 0,
         usecols=use_cols,
+        chunksize=args["chunk_size"] if args["parallel"] > 1 else None,
     )
-    for key in default_polyFun_cols:
-        if is_int(args[key]): # 如果是数字，就是列索引,start from 1
-            args[key] = map_header(data.columns, int(args[key]))
-    logging.info(f"args:\n {args}")
+    if args["parallel"] == 1:
+        for key in default_polyFun_cols:
+            if is_int(args[key]):  # 如果是数字，就是列索引,start from 1
+                args[key] = map_header(data.columns, int(args[key]))
+        logging.info(f"args:\n {args}")
 
-    data = format2polyFun(data, args)
+        data = format2polyFun(data, args)
+    else:
+        from functools import partial
+        from multiprocessing import Pool
+        from tqdm import tqdm
+
+        logging.info(
+            f"parallel with {args['parallel']} workers at chunksize {args['chunk_size']}"
+        )
+
+        with Pool(args["parallel"]) as p:
+            data = list(
+                tqdm(
+                    p.imap(
+                        partial(format2polyFun, args=args),
+                        data,
+                    ),
+                    desc="format2polyFun at parallel chunksize ",
+                )
+            )
+
+        data = pd.concat(data)
 
     logging.info(f"will drop the duplicated SNPs")
     data = data.drop_duplicates(subset="SNP")
