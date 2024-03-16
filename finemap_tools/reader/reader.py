@@ -101,4 +101,12 @@ def tabix_reader(file_path=None, chrom=None, start=None, end=None, region=None):
         if stdout == "":
             print(f"no data found in {region}")
             return None
-        return pd.read_csv(StringIO(stdout), sep="\t", header=None)
+
+        first_line = stdout.split("\n")[0]
+        if all([isinstance(i, str) for i in first_line.split("\t")]):
+            header = 0
+        else:
+            header = None
+
+        data = pd.read_csv(StringIO(stdout), sep="\t", header=header)
+        return data
