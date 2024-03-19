@@ -1,5 +1,81 @@
-
 import pandas as pd 
+from urllib.parse import urlparse
+import subprocess
+import logging
+import time
+
+
+def run_executable(
+    cmd,
+    description,
+    good_returncode=0,
+    measure_time=True,
+    check_errors=True,
+    show_output=False,
+    show_command=False,
+):
+    proc = subprocess.Popen(
+        cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+    )
+    logging.info("Running %s..." % (description))
+    if show_command:
+        logging.info("Command: %s" % (" ".join(cmd)))
+    t0 = time.time()
+    stdout = []
+    if show_output:
+        for line in proc.stdout:
+            if len(line.strip()) > 0:
+                line_str = line.strip().decode("utf-8")
+                stdout.append(line_str)
+                print(line_str)
+        print()  #  Why: to add a newline after the last line of the output
+        stdout = "\n".join(stdout)
+        _, stderr = proc.communicate()
+    else:
+        stdout, stderr = proc.communicate()
+        if stdout is not None:
+            stdout = stdout.decode("ascii")
+            if len(stdout) == 0:
+                stdout = None
+    if stderr is not None:
+        stderr = stderr.decode("ascii")
+        if len(stderr) == 0:
+            stderr = None
+
+    # if (stderr is not None or proc.returncode != good_returncode):
+    if proc.returncode != good_returncode:
+        if stderr is not None:
+            logging.error("stderr:\n%s" % (stderr))
+        if stdout is not None and not show_output:
+            logging.error("stdout:\n%s" % (stdout))
+        raise RuntimeError("%s error" % (description))
+    if measure_time:
+        logging.info("done in %0.2f seconds" % (time.time() - t0))
+
+    if check_errors and stdout is not None:
+        for l in stdout.split("\n"):
+            if "error" in l.lower():
+                logging.error(l)
+                raise RuntimeError("%s reported an error" % (description))
+    if check_errors and stderr is not None:
+        for l in stderr.split("\n"):
+            if "error" in l.lower():
+                logging.error(l)
+                raise RuntimeError("%s reported an error" % (description))
+
+    return stdout, stderr
+
+
+def uri_validator(x):
+    """
+    code taken from: https://stackoverflow.com/questions/7160737/python-how-to-validate-a-url-in-python-malformed-or-not
+    """
+    try:
+        result = urlparse(x)
+        return all([result.scheme, result.netloc, result.path])
+    except:
+        return False
+
 
 def iter_count(file_name):
     from itertools import takewhile, repeat
@@ -55,7 +131,7 @@ def add_ID(df: pd.DataFrame, col_list: list, sort: bool = False, new_col: str = 
         df[new_col] = df.apply(func, axis=1)
     else:
         return df.apply(func, axis=1)
-        
+
 def sort_ID(df: pd.DataFrame, id_col: str, id_sep: str = ":", inplace: bool = False) -> pd.Series:
     """
     Sorts the IDs in a DataFrame column based on chromosome, position, and alleles.
@@ -79,7 +155,7 @@ def sort_ID(df: pd.DataFrame, id_col: str, id_sep: str = ":", inplace: bool = Fa
         df[id_col] = df[id_col].apply(func)
     else:
         return df[id_col].apply(func)
-    
+
 
 # def add_ID(df:pd.DataFrame, col_list, sort=False, new_col="ID", id_sep=":", inplace=False):
 #     """
@@ -98,13 +174,13 @@ def sort_ID(df: pd.DataFrame, id_col: str, id_sep: str = ":", inplace: bool = Fa
 #     Examples:
 #         eQTL_df['ID_sorted'] = add_ID(eQTL_df, ['chromosome', 'position', 'ref', 'alt'], sort=True, inplace=False)
 #     """
-    
+
 #     def func(df):
 #         chr = str(df[col_list[0]])
 #         pos = str(df[col_list[1]])
 #         A1 = df[col_list[2]]
 #         A2 = df[col_list[3]]
-#         if sort: 
+#         if sort:
 #             sorted_A1_A2 = sorted([A1, A2])
 #             return chr + id_sep + pos + id_sep + sorted_A1_A2[0] + id_sep + sorted_A1_A2[1]
 #         else:
@@ -113,7 +189,7 @@ def sort_ID(df: pd.DataFrame, id_col: str, id_sep: str = ":", inplace: bool = Fa
 #         df[new_col] = df.apply(func, axis=1)
 #     else:
 #         return df.apply(func, axis=1)
-        
+
 # def sort_ID(df, id_col, id_sep=":", inplace=False):
 #     """
 #     Sorts the IDs in a DataFrame column based on chromosome, position, and alleles.

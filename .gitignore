@@ -1,5 +1,5 @@
 #user defined 
-gwas-summary-statistics-standard*
+*.tsv
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -188,3 +188,4 @@ poetry.toml
 .ruff_cache/
 
 # End of https://www.toptal.com/developers/gitignore/api/python,
+pipline/coloc/ENSG00000058453/eqtl.tsv
