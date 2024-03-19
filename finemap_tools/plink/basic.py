@@ -6,7 +6,9 @@ import pandas as pd
 from pathlib import Path
 import os 
 def is_plink2_installed():
-    return shutil.which("tabix") 
+    if shutil.which("plink2") is None:
+        return False
+
 
 @overload
 def plink2_cal_freq(pgen:str, snplist:List=None, outSuffix:str=None) -> pd.DataFrame:...
@@ -53,14 +55,32 @@ def plink2_cal_freq(pgen:str, snpfile:str=None,snplist:List=None, outSuffix:str=
 
     return freq 
 
+
 @overload
-def plink2_cal_LD(pgen:str, snplist:List=None, outSuffix:str=None) -> pd.DataFrame:...
+def plink2_cal_LD(
+    pgen: str,
+    snplist: List = None,
+    outSuffix: str = None,
+    thread: int = 4,
+    memory: int = 10240,
+) -> pd.DataFrame: ...
+
+
 @overload
-def plink2_cal_LD(pgen:str, snpfile:str, outSuffix:str=None) -> pd.DataFrame:...
-def plink2_cal_LD(pgen:str, snpfile:str=None,snplist:List=None, outSuffix:str=None) -> pd.DataFrame:
+def plink2_cal_LD(
+    pgen: str, snpfile: str, outSuffix: str = None, thread: int = 4, memory: int = 10240
+) -> pd.DataFrame: ...
+def plink2_cal_LD(
+    pgen: str,
+    snpfile: str = None,
+    snplist: List = None,
+    outSuffix: str = None,
+    thread: int = 4,
+    memory: int = 10240,
+) -> pd.DataFrame:
     """
     Calculate linkage disequilibrium (LD) using PLINK2.
-
+    this should be later version of plink2 at:PLINK v2.00a6LM 64-bit Intel (2 Mar 2024)
     Args:
         pgen (str): Path to the PLINK2 pgen file.
         snpfile (str, optional): Path to the SNP file. Defaults to None.
@@ -74,20 +94,20 @@ def plink2_cal_LD(pgen:str, snpfile:str=None,snplist:List=None, outSuffix:str=No
         Exception: If PLINK2 is not installed.
     Exmaples:
         1. LD_df = plink2_cal_LD(pgen="data/pgen/DNAJC16_ukb", snplist=final_SNP_list, outSuffix='test')
-        
-        2. 
+
+        2.
         with tempfile.TemporaryDirectory() as tmpdirname:
             print('created temporary directory', tmpdirname)
             freq = plink2_cal_LD(pgen="data/pgen/DNAJC16_ukb", snplist=SNP_ID_real, outSuffix=tmpdirname + '/test')
             print(freq)
     """
-    
+
     if not is_plink2_installed():
         raise Exception("plink2 is not installed.")
 
     if outSuffix is None:
         outSuffix = "./plink2_cal_LD"
-    
+
     outSuffix = Path(outSuffix)
     outSuffix.parent.mkdir(parents=True, exist_ok=True)
 
@@ -95,7 +115,7 @@ def plink2_cal_LD(pgen:str, snpfile:str=None,snplist:List=None, outSuffix:str=No
         snplistfile = Path(str(outSuffix) + ".snplist")
         with open(snplistfile, "w") as f:
             f.write("\n".join(snplist))
-    plink2_command = f"plink2 --pfile {pgen} --extract {snplistfile} --r2-unphased square --out {outSuffix} --threads 4 --memory 8496" 
+    plink2_command = f"plink2 --pfile {pgen} --extract {snplistfile} --r2-unphased square --out {outSuffix} --threads {thread} --memory {memory}"
     result = subprocess.run(plink2_command, shell=True, check=True, capture_output=True)
 
     ld_path = outSuffix.with_suffix(".unphased.vcor2")
