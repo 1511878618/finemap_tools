@@ -39,12 +39,15 @@ def save_ld_to_npz(ld_arr, df_ld_snps, npz_file):
     logging.info("Done in %0.2f seconds" % (time.time() - t0))
 
 class Fine_Mapping(object):
+
     def __init__(
         self,
         genotypes_file,
         sumstats_file,
         n,
         chr_num,
+        start,
+        end,
         ldstore_exe,
         sample_file=None,
         incl_samples=None,
@@ -64,6 +67,8 @@ class Fine_Mapping(object):
         df_sumstats = load_sumstats(
             sumstats_file,
             chr_num,
+            start,
+            end,
             allow_swapped_indel_alleles=allow_swapped_indel_alleles,
         )
 
@@ -78,6 +83,8 @@ class Fine_Mapping(object):
         self.cache_format = cache_format
         self.n_threads = n_threads
         self.chr = chr_num
+        self.start = start
+        self.end = end
         self.memory = memory
         self.allow_swapped_indel_alleles = allow_swapped_indel_alleles
 

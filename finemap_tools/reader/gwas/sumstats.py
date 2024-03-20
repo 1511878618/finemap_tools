@@ -12,7 +12,14 @@ from finemap_tools.snpfilter import filter_pipline
 from scipy import stats
 
 
-def load_sumstats(sumstats_file, chr_num, allow_swapped_indel_alleles=False):
+def load_sumstats(
+    sumstats_file,
+    chr_num,
+    start,
+    end,
+    allow_swapped_indel_alleles=False,
+    sumstats_format=None,
+):
     """
     sumstats_file should have these columns: SNP, CHR, BP, A1, A2, Z    (and optionally: P, SNPVAR)
 
@@ -23,10 +30,31 @@ def load_sumstats(sumstats_file, chr_num, allow_swapped_indel_alleles=False):
 
     if sumstats_file.endswith(".gz") and Path(sumstats_file + ".tbi").exists():
 
-        df_sumstats = tabix_reader(sumstats_file, region=f"{chr_num}")
+        if sumstats_format == "GTExV8":
+            logging.info(
+                f"loading GTExV8 format sumstats file with {sumstats_file}......"
+            )
+            from finemap_tools.reader.eQTL.GTEx import GTEx_tabix_reader
+
+            df_sumstats = GTEx_tabix_reader(
+                tabix_file=sumstats_file, region=f"{chr_num}:{start}-{end}"
+            )
+        else:
+            logging.info(
+                f"loading with normal tabix reader to loading sumstats file with {sumstats_file}......"
+            )
+            df_sumstats = tabix_reader(sumstats_file, region=f"{chr_num}:{start}-{end}")
+
+        logging.info(
+            f"the header of loaded file is {df_sumstats.columns}, if it is not the correct header, please check the file or with correct format specified."
+        )
         if all([isinstance(i, str) for i in df_sumstats.iloc[0].values]):
             logging.info(
                 f"this tabix with header info in simply load and the first row is {df_sumstats.iloc[:1].values}"
+            )
+        if df_sumstats.shape[0] == 0:
+            raise IOError(
+                f"sumstats file does not include any SNPs in chromosome {chr_num} from {start} to {end}"
             )
 
     else:

@@ -10,6 +10,7 @@
 Source Code From: https://github.com/omerwe/polyfun
 Modified By Tingfeng Xu
 """
+from pathlib import Path
 import argparse
 import numpy as np
 import textwrap
@@ -24,10 +25,9 @@ from finemap_tools.others.polyfun.polyfun_utils import (
     configure_logger,
     check_package_versions,
 )
-from finemap_tools.finemap import SUSIE_Wrapper, FINEMAP_Wrapper
+from finemap_tools.finemap import SUSIE_Wrapper, FINEMAP_Wrapper, coloc_Wrapper
 
 # from polyfun import configure_logger, check_package_versions
-
 
 
 def splash_screen():
@@ -39,13 +39,7 @@ def splash_screen():
     print()
 
 
-
-
 def args_parse():
-
-
-
-
 
     parser = argparse.ArgumentParser(
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -57,7 +51,8 @@ def args_parse():
             Turn the sumstats to polyFun format
             Only support for all string cols name or all int cols index as input 
             Example code:
-                format2polyFun.py -i DNAJC16.tsv -o test.tsv.gz --chr chrom --pos pos --A1 alt --A2 ref --beta BETA --se SE  
+
+            
             """
         ),
     )
@@ -67,8 +62,10 @@ def args_parse():
         "--method",
         required=True,
         help="Fine-mapping method (currently susie and finemap are supported)",
+        choices=["susie", "finemap", "GIFT", "coloc"],
     )
     parser.add_argument("--sumstats", required=True, help="Name of sumstats file")
+
     parser.add_argument("--chr", required=True, type=int, help="Target chromosome")
     parser.add_argument(
         "--start",
@@ -88,7 +85,11 @@ def args_parse():
     parser.add_argument(
         "--ld", default=None, help="prefix or fill name of an LD matrix file"
     )
-    parser.add_argument("--out", required=True, help="name of the output file")
+    parser.add_argument(
+        "--out",
+        required=True,
+        help="name of the output file; while for coloc will work as output folder name",
+    )
     parser.add_argument(
         "--verbose",
         action="store_true",
@@ -231,10 +232,29 @@ def args_parse():
         default=None,
         help="When estimating causal effect variance via HESS, exclude SNPs that tag less than this amount of heritability (default: None)",
     )
+    # coloc
+    ## fot qtl file
+    parser.add_argument("--qtl", default=None, help="qtl file path, like GTExV8")
+    parser.add_argument("--qtl-format", default="GTExV8", help="qtl format")
+    parser.add_argument("--sumstats-format", default="format", help="sumstats format")
+    parser.add_argument(
+        "--gene_id", default="gene_id", help="gene_id col of qtl file to split"
+    )
+    # parser.add_argument("--n", default=None, help="number of samples in sumstats file")
+    parser.add_argument(
+        "--n2", default=None, type=int, help="number of samples in qtl file"
+    )
+    parser.add_argument(
+        "--sdY1",
+        default=None,
+        type=int,
+        help="sdY1, when --type1 is quant needed, while for cc, it is not needed",
+    )
+    # parser.add_argument("--sdY2", default=None, help="sdY2, when --type2 is quant needed, while for cc, it is not needed")
+    parser.add_argument("--type1", default="quant", help="type1, quant or cc")
+    # parser.add_argument("--type2", default="quant", help="type2, quant or cc")
+
     return parser.parse_args()
-
-
-
 
 
 if __name__ == "__main__":
@@ -247,22 +267,25 @@ if __name__ == "__main__":
     # show splash screen
     splash_screen()
 
-
     # check that the output directory exists
     if len(os.path.dirname(args.out)) > 0 and not os.path.exists(
         os.path.dirname(args.out)
     ):
-        raise ValueError(
-            "output directory %s doesn't exist" % (os.path.dirname(args.out))
-        )
+        # raise ValueError(
+        #     "output directory %s doesn't exist" % (os.path.dirname(args.out))
+        # )
+
+        Path(args.out).parent.mkdir(parents=True, exist_ok=True)
+
     if (
         args.susie_outfile is not None
         and len(os.path.dirname(args.susie_outfile)) > 0
         and not os.path.exists(os.path.dirname(args.susie_outfile))
     ):
-        raise ValueError(
-            "output directory %s doesn't exist" % (os.path.dirname(args.susie_outfile))
-        )
+        # raise ValueError(
+        #     "output directory %s doesn't exist" % (os.path.dirname(args.susie_outfile))
+        # )
+        Path(args.susie_outfile).parent.mkdir(parents=True, exist_ok=True)
 
     # configure logger
     configure_logger(args.out)
@@ -301,6 +324,8 @@ if __name__ == "__main__":
             sumstats_file=args.sumstats,
             n=args.n,
             chr_num=args.chr,
+            start=args.start,
+            end=args.end,
             sample_file=args.sample_file,
             incl_samples=args.incl_samples,
             ldstore_exe=args.ldstore2,
@@ -322,6 +347,8 @@ if __name__ == "__main__":
             sumstats_file=args.sumstats,
             n=args.n,
             chr_num=args.chr,
+            start=args.start,
+            end=args.end,
             sample_file=args.sample_file,
             incl_samples=args.incl_samples,
             ldstore_exe=args.ldstore2,
@@ -333,38 +360,60 @@ if __name__ == "__main__":
             allow_swapped_indel_alleles=args.allow_swapped_indel_alleles,
         )
     elif args.method == "GIFT":
+        # finemap_obj =
+
         raise NotImplementedError
     elif args.method == "coloc":
-        raise NotImplementedError
-    
+
+        finemap_obj = coloc_Wrapper(
+            sumstats_file1=args.sumstats,
+            sumstats_file1_format=args.sumstats_format,
+            sumstats_file2=args.qtl,
+            sumstats_file2_format=args.qtl_format,
+            n1=args.n,
+            n2=args.n2,
+            type1=args.type1,
+            sdY1=args.sdY1,
+            chr_num=args.chr,
+            start=args.start,
+            end=args.end,
+        )
+
     else:
         raise ValueError("unknown method specified in --method")
 
     # run fine-mapping
-    df_finemap = finemap_obj.finemap(
-        locus_start=args.start,
-        locus_end=args.end,
-        num_causal_snps=args.max_num_causal,
-        use_prior_causal_prob=not args.non_funct,
-        prior_var=None,
-        hess=args.hess,
-        hess_iter=args.hess_iter,
-        hess_min_h2=args.hess_min_h2,
-        verbose=args.verbose,
-        ld_file=args.ld,
-        debug_dir=args.debug_dir,
-        allow_missing=args.allow_missing,
-        susie_outfile=args.susie_outfile,
-        finemap_dir=args.finemap_dir,
-        residual_var=args.susie_resvar,
-        residual_var_init=args.susie_resvar_init,
-        hess_resvar=args.susie_resvar_hess,
-        susie_max_iter=args.susie_max_iter,
-    )
-    logging.info("Writing fine-mapping results to %s" % (args.out))
-    if not args.no_sort_pip:
-        df_finemap.sort_values("PIP", ascending=False, inplace=True)
-    if args.out.endswith(".parquet"):
-        df_finemap.to_parquet(args.out, index=False)
+    if args.method == "coloc":
+        finemap_obj.finemap(
+            out_dir=args.out,
+            gene_col=args.gene_id,
+        )
+
     else:
-        df_finemap.to_csv(args.out, sep="\t", index=False, float_format="%0.5e")
+        df_finemap = finemap_obj.finemap(
+            locus_start=args.start,
+            locus_end=args.end,
+            num_causal_snps=args.max_num_causal,
+            use_prior_causal_prob=not args.non_funct,
+            prior_var=None,
+            hess=args.hess,
+            hess_iter=args.hess_iter,
+            hess_min_h2=args.hess_min_h2,
+            verbose=args.verbose,
+            ld_file=args.ld,
+            debug_dir=args.debug_dir,
+            allow_missing=args.allow_missing,
+            susie_outfile=args.susie_outfile,
+            finemap_dir=args.finemap_dir,
+            residual_var=args.susie_resvar,
+            residual_var_init=args.susie_resvar_init,
+            hess_resvar=args.susie_resvar_hess,
+            susie_max_iter=args.susie_max_iter,
+        )
+        logging.info("Writing fine-mapping results to %s" % (args.out))
+        if not args.no_sort_pip:
+            df_finemap.sort_values("PIP", ascending=False, inplace=True)
+        if args.out.endswith(".parquet"):
+            df_finemap.to_parquet(args.out, index=False)
+        else:
+            df_finemap.to_csv(args.out, sep="\t", index=False, float_format="%0.5e")
