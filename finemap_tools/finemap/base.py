@@ -104,7 +104,7 @@ class Fine_Mapping(object):
             assert ld_arr.shape[0] == ld_arr.shape[1]
             df_ld = pd.DataFrame(
                 ld_arr, index=df_ld_snps.index, columns=df_ld_snps.index
-            )
+            )  # this makes index is : chr.bp.a1.a2
         # TODO: rm some LD with NaNs
 
         have_na_snp = df_ld[df_ld.isna().sum() >= 1].index.tolist()

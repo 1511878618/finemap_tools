@@ -12,6 +12,20 @@ from finemap_tools.snpfilter import filter_pipline
 from scipy import stats
 
 
+formatConvert2polyfun = {
+    "pheweb": {"chrom": "CHR", "pos": "BP", "ref": "A2", "alt": "A1", "pval": "P"}
+}
+
+
+def formatConvert2polyfun_func(df, format):
+    if format not in formatConvert2polyfun.keys():
+        raise ValueError(
+            f"format {format} is not supported, please check the formatConvert2polyfun"
+        )
+
+    df.rename(columns=formatConvert2polyfun[format], inplace=True)
+
+
 def load_sumstats(
     sumstats_file,
     chr_num,
@@ -30,20 +44,10 @@ def load_sumstats(
 
     if sumstats_file.endswith(".gz") and Path(sumstats_file + ".tbi").exists():
 
-        if sumstats_format == "GTExV8":
-            logging.info(
-                f"loading GTExV8 format sumstats file with {sumstats_file}......"
-            )
-            from finemap_tools.reader.eQTL.GTEx import GTEx_tabix_reader
-
-            df_sumstats = GTEx_tabix_reader(
-                tabix_file=sumstats_file, region=f"{chr_num}:{start}-{end}"
-            )
-        else:
-            logging.info(
-                f"loading with normal tabix reader to loading sumstats file with {sumstats_file}......"
-            )
-            df_sumstats = tabix_reader(sumstats_file, region=f"{chr_num}:{start}-{end}")
+        logging.info(
+            f"loading with normal tabix reader to loading sumstats file with {sumstats_file}......"
+        )
+        df_sumstats = tabix_reader(sumstats_file, region=f"{chr_num}:{start}-{end}")
 
         logging.info(
             f"the header of loaded file is {df_sumstats.columns}, if it is not the correct header, please check the file or with correct format specified."
@@ -56,18 +60,27 @@ def load_sumstats(
             raise IOError(
                 f"sumstats file does not include any SNPs in chromosome {chr_num} from {start} to {end}"
             )
+        if sumstats_format is not None:
+            formatConvert2polyfun_func(df_sumstats, sumstats_format)
 
     else:
         try:
             df_sumstats = pd.read_parquet(sumstats_file)
         except (ArrowIOError, ArrowInvalid):
             df_sumstats = pd.read_table(sumstats_file, sep="\s+")
+
+        df_sumstats.rename(columns=formatConvert2polyfun[sumstats_format], inplace=True)
         if not np.any(df_sumstats["CHR"] == chr_num):
             raise IOError(
                 "sumstats file does not include any SNPs in chromosome %s" % (chr_num)
             )
+        formatConvert2polyfun_func(df_sumstats, sumstats_format)
+
         if np.any(df_sumstats["CHR"] != chr_num):
             df_sumstats = df_sumstats.query("CHR==%s" % (chr_num)).copy()
+
+    if "SNP" not in df_sumstats.columns:
+        df_sumstats["SNP"] = add_ID(df_sumstats, ["CHR", "BP", "A1", "A2"])
 
     df_sumstats = set_snpid_index(
         df_sumstats, allow_swapped_indel_alleles=allow_swapped_indel_alleles
@@ -81,13 +94,11 @@ def load_sumstats(
     )
     ## filter pipline provided by finemap_tools (if not installed will pass)
 
-    df_sumstats["added_id"] = add_ID(df_sumstats, ["CHR", "BP", "A1", "A2"])
-
     logging.info(
         f"filtering SNP by finemap_tools with {df_sumstats.shape[0]} SNP at begining........"
     )
-    df_sumstats = filter_pipline(sumstats=df_sumstats, id_col="added_id")
+    df_sumstats = filter_pipline(sumstats=df_sumstats, id_col="SNP")
 
     logging.info(f"after filtering, left {df_sumstats.shape[0]} SNP")
-    df_sumstats = df_sumstats.drop(columns=["added_id"])
+
     return df_sumstats

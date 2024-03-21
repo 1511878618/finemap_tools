@@ -67,25 +67,33 @@ def check_package_versions():
 
 
 def set_snpid_index(
-    df, copy=False, allow_duplicates=False, allow_swapped_indel_alleles=False
+    df,
+    copy=False,
+    allow_duplicates=False,
+    allow_swapped_indel_alleles=False,
+    SNP="SNP",
+    CHR="CHR",
+    BP="BP",
+    A1="A1",
+    A2="A2",
 ):
 
     if copy:
         df = df.copy()
-    is_indel = (df["A1"].str.len() > 1) | (df["A2"].str.len() > 1)
-    alleles_are_alphabetical = df["A1"] < df["A2"]
+    is_indel = (df[A1].str.len() > 1) | (df[A2].str.len() > 1)
+    alleles_are_alphabetical = df[A1] < df[A2]
     if allow_swapped_indel_alleles:
         df["A1_first"] = alleles_are_alphabetical
     else:
         df["A1_first"] = alleles_are_alphabetical | is_indel
-    df["A1s"] = df["A2"].copy()
-    df.loc[df["A1_first"], "A1s"] = df.loc[df["A1_first"], "A1"].copy()
-    df["A2s"] = df["A1"].copy()
-    df.loc[df["A1_first"], "A2s"] = df.loc[df["A1_first"], "A2"].copy()
+    df["A1s"] = df[A2].copy()
+    df.loc[df["A1_first"], "A1s"] = df.loc[df["A1_first"], A1].copy()
+    df["A2s"] = df[A1].copy()
+    df.loc[df["A1_first"], "A2s"] = df.loc[df["A1_first"], A2].copy()
     df.index = (
-        df["CHR"].astype(int).astype(str)
+        df[CHR].astype(int).astype(str)
         + "."
-        + df["BP"].astype(str)
+        + df[BP].astype(str)
         + "."
         + df["A1s"]
         + "."
@@ -99,9 +107,7 @@ def set_snpid_index(
         is_duplicate_snp = df.index.duplicated()
         if np.any(is_duplicate_snp):
             df_dup_snps = df.loc[is_duplicate_snp]
-            snp_colums = [
-                c for c in ["SNP", "CHR", "BP", "A1", "A2"] if c in df.columns
-            ]
+            snp_colums = [c for c in [SNP, CHR, BP, A1, A2] if c in df.columns]
             df_dup_snps = df_dup_snps.loc[~df_dup_snps.index.duplicated(), snp_colums]
             error_msg = "Duplicate SNPs were found in the input data:\n%s" % (
                 df_dup_snps
