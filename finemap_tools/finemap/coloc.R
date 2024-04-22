@@ -4,186 +4,202 @@ library(clusterProfiler)
 library(org.Hs.eg.db)
 library(ggplot2)
 library(locuscomparer)
-coloc_analysis <- function(
-sumstats1,
-           sumstats2,
-           output_folder,
-           n1,
-           n2,
-           sdY1,
-           sdY2=NULL,
-           type1="quant",
-           type2="quant",
-           num_causal_snps=1,
-           ld_df=NULL,
-           sumstats1_suffix="gwas",
-           sumstats2_suffix="eQTL"
-           
-)   {
-    if (!dir.exists(output_folder)) {
-      dir.create(output_folder)
+coloc_analysis <- function(sumstats1,
+                           sumstats2,
+                           output_folder,
+                           n1,
+                           n2,
+                           sdY1,
+                           sdY2 = NULL,
+                           type1 = "quant",
+                           type2 = "quant",
+                           num_causal_snps = 1,
+                           ld_df = NULL,
+                           sumstats1_suffix = "gwas",
+                           sumstats2_suffix = "eQTL")   {
+  if (!dir.exists(output_folder)) {
+    dir.create(output_folder)
+  }
+  
+  if (num_causal_snps > 1) {
+    if (is.null(ld_df)) {
+      stop("ld_df must be provided when num_causal_snps > 1")
     }
-    
-    if (num_causal_snps > 1) {
-      if (is.null(ld_df)) {
-        stop("ld_df must be provided when num_causal_snps > 1")
-      }
+  }
+  if (is.null(sdY2) && type2 == "quant") {
+    if (!("maf" %in% colnames(sumstats2))) {
+      stop("sdY2 must be provided when type2 is quant and maf is provided in sumstats2")
     }
-    if (is.null(sdY2) && type2 == "quant") {
-      if (!("maf" %in% colnames(sumstats2))) {
-        stop("sdY2 must be provided when type2 is quant and maf is provided in sumstats2")
-      }
-    }
-
-
-    if ("gene_id" %in% colnames(sumstats2)) {
-        print("gene_id column found in sumstats2, using gene_id to split the data")
-    }
-
-    ## 由于ld_d 的index和columns 被R会修改成1.xx.a.t的形式，因此sumstats1 和2的index 默认也是这个样子，所以这里的snp，直接用rownames
-    sumstats1$snpidx <- rownames(sumstats1)
-    sumstats2$snpidx <- rownames(sumstats2)
-
-    merged_data <-
+  }
+  
+  
+  if ("gene_id" %in% colnames(sumstats2)) {
+    print("gene_id column found in sumstats2, using gene_id to split the data")
+  }
+  
+  ## 由于ld_d 的index和columns 被R会修改成1.xx.a.t的形式，因此sumstats1 和2的index 默认也是这个样子，所以这里的snp，直接用rownames
+  sumstats1$snpidx <- rownames(sumstats1)
+  sumstats2$snpidx <- rownames(sumstats2)
+  
+  merged_data <-
     inner_join(
-        sumstats2,
-        sumstats1[, c("snpidx",
+      sumstats2,
+      sumstats1[, c("snpidx",
                     "beta",
                     "varbeta",
                     "position",
                     "pvalue")],
-        by = c("snpidx", "position"),
+      by = c("snpidx", "position"),
+      
+      suffix = c(
+        paste0("_", sumstats1_suffix),
+        paste0("_", sumstats2_suffix)
+      )
+    )
+  
+  print(paste0("Number of SNPs in common:", dim(merged_data)[1]))
+  
+  ## this is the most important part of code !
+  dataset1 = list(
+    beta = merged_data[, paste0("beta_", sumstats1_suffix)],
+    varbeta = merged_data[, paste0("varbeta_", sumstats1_suffix)],
+    snp = merged_data[, "snpidx"],
+    # index is the snp name with 1.xx.a.t like ld_df do
+    position = merged_data$position,
+    sdY = sdY1,
+    N = n1,
+    type = type1
+  )
+  
+  dataset2 = list(
+    beta = merged_data[, paste0("beta_", sumstats2_suffix)],
+    varbeta = merged_data[, paste0("varbeta_", sumstats2_suffix)],
+    snp = merged_data[, "snpidx"],
+    # index is the snp name with 1.xx.a.t like ld_df do
+    position = merged_data$position,
+    N = n2,
+    type = type2
+  )
 
-        suffix = c(paste0("_",sumstats1_suffix), paste0("_",sumstats2_suffix)))
+
+  if ("maf" %in% colnames(merged_data)) {
+    dataset2$MAF = merged_data$maf
+  }
+  if (!(is.null(sdY2))) {
+    dataset2$sdY = sdY2
+  }
+
+  if (num_causal_snps > 1) {
+    print(dim(ld_df))
+    print(dim(merged_data))
+    dataset1$LD = as.matrix(ld_df)
+    dataset2$LD = as.matrix(ld_df)
     
-    print(paste0("Number of SNPs in common:", dim(merged_data)[1]))
-
-    ## this is the most important part of code !
-    dataset1 = list(
-        beta = merged_data[,paste0("beta_",sumstats1_suffix)],
-        varbeta = merged_data[,paste0("varbeta_",sumstats1_suffix)],
-        snp = merged_data[, "snpidx"], # index is the snp name with 1.xx.a.t like ld_df do 
-        position = merged_data$position,
-        sdY = sdY1,
-        N = n1,
-        type = type1
-    )
-
-
-    dataset2 = list(
-        beta = merged_data[,paste0("beta_",sumstats2_suffix)],
-        varbeta = merged_data[,paste0("varbeta_",sumstats2_suffix)],
-        snp = merged_data[, "snpidx"],  # index is the snp name with 1.xx.a.t like ld_df do
-        position = merged_data$position,
-        N = n2,
-        type = type2
-    )
-    if ("maf" %in% colnames(merged_data)) {
-        dataset2$MAF = merged_data$maf
+    save(sumstats1,
+         sumstats2,
+         merged_data,
+         dataset1,
+         dataset2,
+         ld_df,
+         file = "/home/xutingfeng/GIFT/data/analysis/DNAJC16/coloc/coloc_test.RData")
+    
+    if (!(is.null(check_dataset(dataset1)))) {
+      stop("dataset1 is not valid")
     }
-    if (!(is.null(sdY2))) {
-        dataset2$sdY = sdY2
+    if (!(is.null(check_dataset(dataset2)))) {
+      stop("dataset2 is not valid")
     }
-
-    if (num_causal_snps >1){
-        print(dim(ld_df))
-        print(dim(merged_data))
-        dataset1$LD = as.matrix(ld_df)
-        dataset2$LD = as.matrix(ld_df)
-        
-        save(sumstats1, sumstats2,merged_data,dataset1,dataset2, ld_df, file = "/home/xutingfeng/GIFT/data/analysis/DNAJC16/coloc/coloc_test.RData")
-
-        if (!(is.null(check_dataset(dataset1)))){
-            stop("dataset1 is not valid")
-        }
-        if (!(is.null(check_dataset(dataset2)))){
-            stop("dataset2 is not valid")
-        }
-
-        ds1 <- runsusie(dataset1)
-        ds2 <- runsusie(dataset2)
-        if(requireNamespace("susieR",quietly=TRUE)) {
-        susie.res=coloc.susie(ds1,ds2)
-        print(susie.res$summary)
-        }
-
-    else {
-
-        re <- coloc.abf(
-        dataset1 = dataset1,
-        dataset2 = dataset2
-        )
-
-        # save sensitivity plot
-        png( 
-        filename =  file.path(output_folder, "sensitivity.png"), # 文件名称
-        width = 10,            # 宽
-        height = 10,           # 高
-        units = "in",          # 单位
-        bg = "white",          # 背景颜色
-        res = 400)             # 分辨率
-        sensitivity(re,"H4 > 0.95")
-        dev.off()
+    
+    ds1 <- runsusie(dataset1)
+    ds2 <- runsusie(dataset2)
+    if (requireNamespace("susieR", quietly = TRUE)) {
+      susie.res = coloc.susie(ds1, ds2)
+      print(susie.res$summary)
     }
-
-
+  }
+    
+  else {
+      print("ld_df is not provided, using coloc.abf")
+      re <- coloc.abf(dataset1 = dataset1,
+                      dataset2 = dataset2)
+      print("Finish coloc.abf")
+      print(re$summary)
+      # save sensitivity plot
+      png(
+        filename =  file.path(output_folder, "sensitivity.png"),
+        # 文件名称
+        width = 10,
+        # 宽
+        height = 10,
+        # 高
+        units = "in",
+        # 单位
+        bg = "white",
+        # 背景颜色
+        res = 400
+      )             # 分辨率
+      sensitivity(re, "H4 > 0.95")
+      dev.off()
+    }
+    
+    
     ## locuscompare
     pltdata1 <-
-    merged_data[, c("rsid", paste0("pvalue_",sumstats1_suffix))]
+      merged_data[, c("rsid", paste0("pvalue_", sumstats1_suffix))]
     
     
     pltdata2 <-
-    merged_data[, c("rsid", paste0("pvalue_",sumstats2_suffix))]
+      merged_data[, c("rsid", paste0("pvalue_", sumstats2_suffix))]
     
     tmp_pltdata1_path <-
-    file.path(output_folder, paste0(sumstats1_suffix,".tsv"))
-
+      file.path(output_folder, paste0(sumstats1_suffix, ".tsv"))
+    
     tmp_pltdata2_path <-
-    file.path(output_folder,paste0(sumstats2_suffix,".tsv"))
-
+      file.path(output_folder, paste0(sumstats2_suffix, ".tsv"))
+    
     write.table(
-        pltdata1,
-        tmp_pltdata1_path,
-        col.names = T,
-        row.names = F,
-        sep = "\t",
-        quote = F
-      )
+      pltdata1,
+      tmp_pltdata1_path,
+      col.names = T,
+      row.names = F,
+      sep = "\t",
+      quote = F
+    )
     write.table(
-        pltdata2,
-        tmp_pltdata2_path,
-        col.names = T,
-        row.names = F,
-        sep = "\t",
-        quote = F
-      )
+      pltdata2,
+      tmp_pltdata2_path,
+      col.names = T,
+      row.names = F,
+      sep = "\t",
+      quote = F
+    )
     locuscompare(
-    tmp_pltdata1_path,
-    tmp_pltdata2_path,
-    legend = F,
-    title1 = sumstats1_suffix,
-    title2 = sumstats2_suffix,
-    genome = "hg38",
-    population = "EUR",
-    marker_col1 = "rsid",
-    pval_col1 = paste0("pvalue_",sumstats1_suffix),
-    marker_col2 = "rsid",
-    pval_col2 = paste0("pvalue_",sumstats2_suffix)
+      tmp_pltdata1_path,
+      tmp_pltdata2_path,
+      legend = F,
+      title1 = sumstats1_suffix,
+      title2 = sumstats2_suffix,
+      genome = "hg38",
+      population = "EUR",
+      marker_col1 = "rsid",
+      pval_col1 = paste0("pvalue_", sumstats1_suffix),
+      marker_col2 = "rsid",
+      pval_col2 = paste0("pvalue_", sumstats2_suffix)
     )
     ggsave(
-    file = file.path(output_folder, "locuscompare.png"),
-    width = 10,
-    height = 5
+      file = file.path(output_folder, "locuscompare.png"),
+      width = 10,
+      height = 5
     )
     
     ## save result
     current_coloc_res <- re$summary
     
     if (re$summary['PP.H4.abf'] > 0.95) {
-    current_coloc_res$is_significant <- TRUE
+      current_coloc_res$is_significant <- TRUE
     }
     else {
-    current_coloc_res$is_significant <- FALSE
+      current_coloc_res$is_significant <- FALSE
     }
     
     re_df <- re$results[, c("snp", "SNP.PP.H4")]
@@ -193,9 +209,9 @@ sumstats1,
     print(colnames(res_df))
     # return (list(coloc_res = current_coloc_res, coloc_snp_res = res_df))
     return (list(coloc_res = current_coloc_res, coloc_snp_res = res_df))
-      
-    }
-}
+    
+  }
+
 
 
 

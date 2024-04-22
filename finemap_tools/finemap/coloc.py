@@ -523,6 +523,8 @@ class coloc_Wrapper(Fine_Mapping):
                     # with robjects.conversion.localconverter(
                     #     robjects.default_converter + pandas2ri.converter
                     # ):
+                    print(current_res)
+                    print(type(current_res))
                     current_res_gene_df = current_res["coloc_res"]
                     current_res_gene_df["gene_id"] = gene_id
                     # print(current_res["coloc_snp_res"].column)
